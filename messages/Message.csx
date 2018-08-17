@@ -1,4 +1,4 @@
-using Microsoft.Bot.Connector;
+//using Microsoft.Bot.Connector;
 
 public class Message
 {

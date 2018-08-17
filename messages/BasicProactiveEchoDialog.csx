@@ -16,6 +16,7 @@ using Newtonsoft.Json;
 public class BasicProactiveEchoDialog : IDialog<object>
 {
     protected int count = 1;
+    protected bool askedAboutPancackes;
 
     public Task StartAsync(IDialogContext context)
     {
@@ -26,30 +27,58 @@ public class BasicProactiveEchoDialog : IDialog<object>
     public virtual async Task MessageReceivedAsync(IDialogContext context, IAwaitable<IMessageActivity> argument)
     {
         var message = await argument;
-        if (message.Text == "reset")
+        switch (message.Text)
         {
-            PromptDialog.Confirm(
+            case "pancakes":
+                if (this.askedAboutPancackes)
+                {
+                    // Create new queue Message
+                    var queueNewMessage = new Message
+                    {
+                        RelatesTo = context.Activity.ToConversationReference(),
+                        Text = message.Text,
+                        IsTrustedServiceUrl = MicrosoftAppCredentials.IsTrustedServiceUrl(message.ServiceUrl)
+                    };
+
+                    // write the queue Message to the queue
+                    await AddMessageToQueueAsync(JsonConvert.SerializeObject(queueNewMessage));
+
+                    await context.PostAsync($"{this.count++}: I remeber..");
+                    context.Wait(MessageReceivedAsync);
+                }
+                else
+                {
+                    PromptDialog.Confirm(
+                    context,
+                    AfterPancakesAsync,
+                    "Do you like pancakes?",
+                    "O'Really?!",
+                    promptStyle: PromptStyle.Auto);
+                }
+                break;
+            case "reset":
+                PromptDialog.Confirm(
                 context,
                 AfterResetAsync,
                 "Are you sure you want to reset the count?",
                 "Didn't get that!",
                 promptStyle: PromptStyle.Auto);
-        }
-        else
-        {
-            // Create a queue Message
-            var queueMessage = new Message
-            {
-                RelatesTo = context.Activity.ToConversationReference(),
-                Text = message.Text,
-                IsTrustedServiceUrl = MicrosoftAppCredentials.IsTrustedServiceUrl(message.ServiceUrl)
-            };
+                break;
+            default:
+                // Create a queue Message
+                var queueMessage = new Message
+                {
+                    RelatesTo = context.Activity.ToConversationReference(),
+                    Text = message.Text,
+                    IsTrustedServiceUrl = MicrosoftAppCredentials.IsTrustedServiceUrl(message.ServiceUrl)
+                };
 
-            // write the queue Message to the queue
-            await AddMessageToQueueAsync(JsonConvert.SerializeObject(queueMessage));
+                // write the queue Message to the queue
+                await AddMessageToQueueAsync(JsonConvert.SerializeObject(queueMessage));
 
-            await context.PostAsync($"{this.count++}: You said {queueMessage.Text}. Your message has been added to a queue, and it will be sent back to you via a Function shortly.");
-            context.Wait(MessageReceivedAsync);
+                await context.PostAsync($"{this.count++}: You said {queueMessage.Text}. Your message has been added to a queue, and it will be sent back to you via a Function shortly.");
+                context.Wait(MessageReceivedAsync);
+                break;
         }
     }
 
@@ -64,6 +93,22 @@ public class BasicProactiveEchoDialog : IDialog<object>
         else
         {
             await context.PostAsync("Did not reset count.");
+        }
+        context.Wait(MessageReceivedAsync);
+    }
+
+    public async Task AfterPancakesAsync(IDialogContext context, IAwaitable<bool> argument)
+    {
+        this.askedAboutPancackes = true;
+        var confirm = await argument;
+        if (confirm)
+        {
+            this.count = 1;
+            await context.PostAsync("Me too.");
+        }
+        else
+        {
+            await context.PostAsync("Diabeties.");
         }
         context.Wait(MessageReceivedAsync);
     }
